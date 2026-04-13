@@ -398,7 +398,7 @@ class DockerEnvironment(BaseEnvironment):
             env_args.extend(["-e", f"{key}={self._env[key]}"])
 
         logger.info(f"Docker volume_args: {volume_args}")
-        all_run_args = list(_SECURITY_ARGS) + writable_args + resource_args + volume_args + env_args
+        all_run_args = list(_SECURITY_ARGS) + ["--add-host=host.docker.internal:host-gateway"] + writable_args + resource_args + volume_args + env_args
         logger.info(f"Docker run_args: {all_run_args}")
 
         # Resolve the docker executable once so it works even when
