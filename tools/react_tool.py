@@ -41,7 +41,24 @@ ALLOWED_REACTIONS = {
 
 
 def _agent_reactions_enabled() -> bool:
-    return os.getenv("TELEGRAM_AGENT_REACTIONS", "false").lower() not in ("false", "0", "no")
+    """Return True if TELEGRAM_AGENT_REACTIONS is set, or config.yaml enables it."""
+    env_val = os.getenv("TELEGRAM_AGENT_REACTIONS", "").lower()
+    if env_val:
+        return env_val not in ("false", "0", "no")
+    # Fallback: read directly from the profile's config.yaml (for cases where
+    # load_gateway_config() hasn't run yet or the env var wasn't propagated).
+    try:
+        import yaml
+        from hermes_constants import get_hermes_home
+        cfg_path = get_hermes_home() / "config.yaml"
+        if cfg_path.exists():
+            with open(cfg_path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            val = cfg.get("telegram", {}).get("agent_reactions", False)
+            return bool(val) and str(val).lower() not in ("false", "0", "no")
+    except Exception:
+        pass
+    return False
 
 
 def _signature_emoji() -> str:
@@ -98,11 +115,25 @@ def _build_schema() -> dict:
 
 
 def _check_react_tool() -> bool:
-    """Only available in Telegram sessions with TELEGRAM_AGENT_REACTIONS=1."""
+    """Only available in Telegram sessions with TELEGRAM_AGENT_REACTIONS=1.
+
+    Uses the same fallback pattern as send_message: if session context isn't
+    set yet (tool list built before session starts), fall back to checking
+    whether Telegram is configured and running.
+    """
     if not _agent_reactions_enabled():
         return False
     from gateway.session_context import get_session_env
-    return get_session_env("HERMES_SESSION_PLATFORM", "") == "telegram"
+    platform = get_session_env("HERMES_SESSION_PLATFORM", "")
+    if platform:
+        return platform == "telegram"
+    # Fallback: session context not set yet — available if gateway is running
+    # (same pattern as send_message check_fn)
+    try:
+        from gateway.status import is_gateway_running
+        return is_gateway_running()
+    except Exception:
+        return False
 
 
 def react_tool(args, **kw):
