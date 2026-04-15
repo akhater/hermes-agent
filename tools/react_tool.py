@@ -91,7 +91,10 @@ def _build_schema() -> dict:
                 },
                 "message_id": {
                     "type": "string",
-                    "description": "ID of the Telegram message to react to. Required for action='react'.",
+                    "description": (
+                        "ID of the Telegram message to react to. "
+                        "Defaults to the current incoming message — omit to react to the message you're replying to."
+                    ),
                 },
                 "emoji": {
                     "type": "string",
@@ -159,6 +162,9 @@ def react_tool(args, **kw):
 
     # action == "react"
     message_id = str(args.get("message_id", "")).strip()
+    if not message_id:
+        from gateway.session_context import get_session_env
+        message_id = get_session_env("HERMES_SESSION_MESSAGE_ID", "")
     if not message_id:
         return json.dumps({"error": "'message_id' is required for action='react'."})
 
