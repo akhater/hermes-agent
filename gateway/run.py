@@ -6409,8 +6409,12 @@ class GatewayRunner:
         context = build_session_context(source, self.config, session_entry)
         
         # Set session context variables for tools (task-local, concurrency-safe)
+        # HERMES_SESSION_MESSAGE_ID is only populated when TELEGRAM_AGENT_REACTIONS
+        # is enabled — no need to track it otherwise.
+        _reactions_on = os.getenv("TELEGRAM_AGENT_REACTIONS", "").lower() not in ("", "false", "0", "no")
         _session_env_tokens = self._set_session_env(
-            context, message_id=str(event.message_id) if event.message_id else ""
+            context,
+            message_id=str(event.message_id) if (event.message_id and _reactions_on) else "",
         )
         
         # Read privacy.redact_pii from config (re-read per message)
