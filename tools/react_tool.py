@@ -62,8 +62,26 @@ def _agent_reactions_enabled() -> bool:
 
 
 def _signature_emoji() -> str:
-    """Return this agent's configured signature emoji, or empty string."""
-    return os.getenv("TELEGRAM_SIGNATURE_EMOJI", "").strip()
+    """Return this agent's configured signature emoji, or empty string.
+
+    Resolution order:
+    1. TELEGRAM_SIGNATURE_EMOJI env var (set by load_gateway_config())
+    2. config.yaml telegram.signature_emoji (direct read, timing-safe fallback)
+    """
+    val = os.getenv("TELEGRAM_SIGNATURE_EMOJI", "").strip()
+    if val:
+        return val
+    try:
+        import yaml
+        from hermes_constants import get_hermes_home
+        cfg_path = get_hermes_home() / "config.yaml"
+        if cfg_path.exists():
+            with open(cfg_path, encoding="utf-8") as f:
+                cfg = yaml.safe_load(f) or {}
+            return str(cfg.get("telegram", {}).get("signature_emoji", "")).strip()
+    except Exception:
+        pass
+    return ""
 
 
 def _build_schema() -> dict:
