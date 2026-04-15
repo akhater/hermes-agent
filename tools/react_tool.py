@@ -72,10 +72,13 @@ def _build_schema() -> dict:
     return {
         "name": "react_to_message",
         "description": (
-            "Add an emoji reaction to a Telegram message, or update your signature emoji. "
-            "Use reactions sparingly and only when a reaction genuinely fits the moment — "
-            "e.g. 🎉 for good news, ❤ for thanks, 🤔 when uncertain. "
-            f"Requires TELEGRAM_AGENT_REACTIONS=1 and a Telegram session.{sig_hint}"
+            "Add an emoji reaction to a Telegram message, or change your signature emoji.\n\n"
+            "USAGE — always pass emoji explicitly:\n"
+            "  react_to_message(emoji=\"🔥\")           — react to the current message\n"
+            "  react_to_message(emoji=\"🎉\", message_id=\"123\")  — react to a specific message\n"
+            "  react_to_message(action=\"set_signature\", emoji=\"🌚\")  — change your default emoji\n\n"
+            "Use reactions when a reaction genuinely fits: 🎉 good news, ❤ thanks, 🤔 uncertain, 🔥 exciting."
+            + (f"\nYour signature emoji is {sig} — use it when you have no specific preference." if sig else "")
         ),
         "parameters": {
             "type": "object",
