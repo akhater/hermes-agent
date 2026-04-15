@@ -1,4 +1,4 @@
-"""react_tool — let the agent set a Telegram message reaction.
+"""react_tool — agent-callable Telegram reactions + signature emoji management.
 
 The lifecycle reactions (👀 processing, 👍/👎 complete) are controlled by
 ``TELEGRAM_REACTIONS=1`` and are unchanged by this tool.  This tool is
@@ -9,11 +9,15 @@ Config (config.yaml per-profile):
     telegram:
       reactions: true           # lifecycle reactions (👀/👍/👎) — existing
       agent_reactions: true     # enables this agent-callable tool
-      signature_emoji: "❤"     # agent's default reaction; exposed in tool desc
+      signature_emoji: "💫"     # agent's default / identity reaction
 
 Set TELEGRAM_REACTIONS=1 in env (or reactions: true in config) for lifecycle.
 Set TELEGRAM_AGENT_REACTIONS=1 (or agent_reactions: true) for agent tool.
 They are independent — you can enable either or both.
+
+Actions:
+  react          — set an emoji reaction on a message (default)
+  set_signature  — persistently update this agent's signature emoji
 """
 
 import json
@@ -51,24 +55,33 @@ def _build_schema() -> dict:
     return {
         "name": "react_to_message",
         "description": (
-            "Add an emoji reaction to a Telegram message. "
-            "Use sparingly and only when a reaction genuinely fits the moment — "
+            "Add an emoji reaction to a Telegram message, or update your signature emoji. "
+            "Use reactions sparingly and only when a reaction genuinely fits the moment — "
             "e.g. 🎉 for good news, ❤ for thanks, 🤔 when uncertain. "
             f"Requires TELEGRAM_AGENT_REACTIONS=1 and a Telegram session.{sig_hint}"
         ),
         "input_schema": {
             "type": "object",
             "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["react", "set_signature"],
+                    "description": (
+                        "'react' (default) — set an emoji reaction on a message. "
+                        "'set_signature' — persistently change your signature emoji "
+                        "(saved to config.yaml and effective immediately)."
+                    ),
+                },
                 "message_id": {
                     "type": "string",
-                    "description": "ID of the Telegram message to react to.",
+                    "description": "ID of the Telegram message to react to. Required for action='react'.",
                 },
                 "emoji": {
                     "type": "string",
                     "description": (
                         "Emoji from Telegram's reaction whitelist. "
-                        "Common choices: 👍 👎 ❤ 🔥 🎉 🤔 😢 👀 🤩 🙏 💯 😎"
-                        + (f"  Default: {sig}" if sig else "")
+                        "Common choices: 👍 👎 ❤ 🔥 🎉 🤔 😢 👀 🤩 🙏 💯 😎 💫"
+                        + (f"  Current signature: {sig}" if sig else "")
                     ),
                 },
                 "chat_id": {
@@ -79,7 +92,7 @@ def _build_schema() -> dict:
                     ),
                 },
             },
-            "required": ["message_id", "emoji"],
+            "required": ["emoji"],
         },
     }
 
@@ -99,24 +112,25 @@ def react_tool(args, **kw):
             "error": "Agent reactions are disabled. Set TELEGRAM_AGENT_REACTIONS=1 to enable."
         })
 
-    message_id = str(args.get("message_id", "")).strip()
+    action = args.get("action", "react")
     emoji = args.get("emoji", "").strip()
 
-    if not message_id:
-        return json.dumps({"error": "'message_id' is required."})
-
-    # Fall back to signature emoji if caller omitted the emoji
     if not emoji:
         emoji = _signature_emoji()
     if not emoji:
         return json.dumps({"error": "'emoji' is required (or set TELEGRAM_SIGNATURE_EMOJI)."})
 
-    # Warn but don't block on unknown emoji — Telegram will reject it with a
-    # clear error, and the whitelist may lag behind API updates.
     if emoji not in ALLOWED_REACTIONS:
         logger.debug("[react_tool] emoji %r not in known whitelist; proceeding anyway", emoji)
 
-    # Resolve chat_id: explicit arg → session context → error
+    if action == "set_signature":
+        return _handle_set_signature(emoji)
+
+    # action == "react"
+    message_id = str(args.get("message_id", "")).strip()
+    if not message_id:
+        return json.dumps({"error": "'message_id' is required for action='react'."})
+
     chat_id = str(args.get("chat_id", "")).strip()
     if not chat_id:
         from gateway.session_context import get_session_env
@@ -126,7 +140,6 @@ def react_tool(args, **kw):
             "error": "No chat_id available. Pass 'chat_id' explicitly or call from a Telegram session."
         })
 
-    # Get bot token from gateway config
     try:
         from gateway.config import load_gateway_config, Platform
         config = load_gateway_config()
@@ -143,6 +156,38 @@ def react_tool(args, **kw):
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": f"react_to_message failed: {e}"})
+
+
+def _handle_set_signature(emoji: str) -> str:
+    """Persist a new signature emoji to config.yaml and update the running env."""
+    try:
+        from hermes_constants import get_hermes_home
+        import yaml
+        from utils import atomic_yaml_write
+
+        config_path = get_hermes_home() / "config.yaml"
+
+        user_config: dict = {}
+        if config_path.exists():
+            with open(config_path, encoding="utf-8") as f:
+                user_config = yaml.safe_load(f) or {}
+
+        if not isinstance(user_config.get("telegram"), dict):
+            user_config["telegram"] = {}
+        user_config["telegram"]["signature_emoji"] = emoji
+
+        atomic_yaml_write(config_path, user_config, sort_keys=False)
+
+        # Immediate effect in the running process
+        os.environ["TELEGRAM_SIGNATURE_EMOJI"] = emoji
+
+        return json.dumps({
+            "success": True,
+            "signature_emoji": emoji,
+            "note": "Saved to config.yaml — effective immediately and on next restart.",
+        })
+    except Exception as e:
+        return json.dumps({"error": f"set_signature failed: {e}"})
 
 
 async def _set_reaction(token: str, chat_id: str, message_id: str, emoji: str) -> dict:
