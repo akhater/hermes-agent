@@ -265,7 +265,18 @@ async def _set_reaction(token: str, chat_id: str, message_id: str, emoji: str) -
         )
         return {"success": True, "chat_id": chat_id, "message_id": message_id, "emoji": emoji}
     except Exception as e:
+        err = str(e)
         logger.debug("[react_tool] set_message_reaction failed (%s): %s", emoji, e)
+        if "reaction" in err.lower() or "invalid" in err.lower() or "parse" in err.lower():
+            return {
+                "error": (
+                    f"'{emoji}' is not a valid Telegram reaction. "
+                    "Pick from the confirmed list in the tool description: "
+                    "👍 👎 ❤ 🔥 🥰 👏 😁 🤔 🤯 😱 🤬 😢 🎉 🤩 🙏 👌 🕊 🤡 🥱 "
+                    "😍 🐳 🌚 🌟 💯 🤣 ⚡ 🍌 🏆 💔 😐 🍓 🍾 😈 😴 😭 🤓 👻 👨‍💻 "
+                    "👀 🎃 🙈 😇 😨 🤝 🤗 🫡 💅 🤪 🗿 🆒 💘 🦄 😘 💊 😎 👾 🤷 😡"
+                )
+            }
         return {"error": f"Reaction failed: {e}"}
 
 
