@@ -13938,6 +13938,13 @@ class GatewayRunner:
             # session_key is now set via contextvars in _set_session_env()
             # (concurrency-safe). Keep os.environ as fallback for CLI/cron.
             os.environ["HERMES_SESSION_KEY"] = session_key or ""
+            # run_in_executor does NOT copy ContextVars to threads, so tools
+            # can't read HERMES_SESSION_* vars via contextvars. Mirror the
+            # session_key pattern: set os.environ here so os.getenv() fallback
+            # in get_session_env() works. Safe for single-session agents (Orion
+            # etc.); concurrent-session setups already route per session_key.
+            os.environ["HERMES_SESSION_MESSAGE_ID"] = event_message_id or ""
+            os.environ["HERMES_SESSION_CHAT_ID"] = str(source.chat_id) if source.chat_id else ""
 
             # Read from env var or use default (same as CLI)
             max_iterations = int(os.getenv("HERMES_MAX_ITERATIONS", "90"))

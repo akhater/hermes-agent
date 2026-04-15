@@ -36,7 +36,7 @@ ALLOWED_REACTIONS = {
     "😴", "😭", "🤓", "👻", "👨‍💻", "👀", "🎃", "🙈", "😇", "😨",
     "🤝", "✍", "🤗", "🫡", "🎅", "🎄", "☃", "💅", "🤪", "🗿",
     "🆒", "💘", "🙉", "🦄", "😘", "💊", "🙊", "😎", "👾", "🤷",
-    "😡",
+    "😡", "🌟",
 }
 
 
@@ -77,7 +77,7 @@ def _build_schema() -> dict:
             "e.g. 🎉 for good news, ❤ for thanks, 🤔 when uncertain. "
             f"Requires TELEGRAM_AGENT_REACTIONS=1 and a Telegram session.{sig_hint}"
         ),
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {
                 "action": {
@@ -99,9 +99,11 @@ def _build_schema() -> dict:
                 "emoji": {
                     "type": "string",
                     "description": (
-                        "Emoji from Telegram's reaction whitelist. "
-                        "Common choices: 👍 👎 ❤ 🔥 🎉 🤔 😢 👀 🤩 🙏 💯 😎 💫"
-                        + (f"  Current signature: {sig}" if sig else "")
+                        "The emoji character to react with. "
+                        "Confirmed working: 👍 👎 ❤ 🔥 🥰 👏 😁 🤔 🤯 😱 🤬 😢 🎉 🤩 💩 🙏 👌 🕊 🤡 🥱 "
+                        "😍 🐳 🌚 🌟 💯 🤣 ⚡ 🍌 🏆 💔 😐 🍓 🍾 🖕 😈 😴 😭 🤓 👻 👨‍💻 👀 🎃 🙈 😇 "
+                        "😨 🤝 🤗 🫡 💅 🤪 🗿 🆒 💘 🦄 😘 💊 😎 👾 🤷 😡"
+                        + (f"  Your signature: {sig}" if sig else "")
                     ),
                 },
                 "chat_id": {
@@ -141,6 +143,7 @@ def _check_react_tool() -> bool:
 
 def react_tool(args, **kw):
     """Handle react_to_message tool calls."""
+    logger.info("[react_tool] called with args=%r", args)
     if not _agent_reactions_enabled():
         return json.dumps({
             "error": "Agent reactions are disabled. Set TELEGRAM_AGENT_REACTIONS=1 to enable."
@@ -155,7 +158,7 @@ def react_tool(args, **kw):
         return json.dumps({"error": "'emoji' is required (or set TELEGRAM_SIGNATURE_EMOJI)."})
 
     if emoji not in ALLOWED_REACTIONS:
-        logger.debug("[react_tool] emoji %r not in known whitelist; proceeding anyway", emoji)
+        logger.debug("[react_tool] emoji %r not in known whitelist; attempting anyway", emoji)
 
     if action == "set_signature":
         return _handle_set_signature(emoji)
@@ -188,8 +191,10 @@ def react_tool(args, **kw):
         return json.dumps({"error": f"Failed to load gateway config: {e}"})
 
     try:
+        logger.info("[react_tool] setting reaction chat=%s msg=%s emoji=%r", chat_id, message_id, emoji)
         from model_tools import _run_async
         result = _run_async(_set_reaction(token, chat_id, message_id, emoji))
+        logger.info("[react_tool] result: %r", result)
         return json.dumps(result)
     except Exception as e:
         return json.dumps({"error": f"react_to_message failed: {e}"})
@@ -230,12 +235,12 @@ def _handle_set_signature(emoji: str) -> str:
 async def _set_reaction(token: str, chat_id: str, message_id: str, emoji: str) -> dict:
     """Call Bot.set_message_reaction via python-telegram-bot."""
     try:
-        from telegram import Bot
+        from telegram import Bot, ReactionTypeEmoji
         bot = Bot(token=token)
         await bot.set_message_reaction(
             chat_id=int(chat_id),
             message_id=int(message_id),
-            reaction=emoji,
+            reaction=[ReactionTypeEmoji(emoji=emoji)],
         )
         return {"success": True, "chat_id": chat_id, "message_id": message_id, "emoji": emoji}
     except Exception as e:
