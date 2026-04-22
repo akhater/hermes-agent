@@ -12,10 +12,22 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 # Install system dependencies in one layer, clear APT cache
 # tini reaps orphaned zombie processes (MCP stdio subprocesses, git, bun, etc.)
 # that would otherwise accumulate when hermes runs as PID 1. See #15012.
+# Also include tmux for inner Claude sessions and document tools for the
+# baked native document manipulation skills.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    build-essential curl nodejs npm python3 ripgrep ffmpeg gcc python3-dev libffi-dev procps git openssh-client docker-cli tini && \
+    build-essential curl nodejs npm python3 ripgrep ffmpeg gcc python3-dev libffi-dev procps git \
+    openssh-client docker-cli tini tmux ca-certificates pandoc poppler-utils libreoffice-writer-nogui && \
     rm -rf /var/lib/apt/lists/*
+
+# Install Claude Code CLI globally (used by inner Claude sessions in containers)
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    mkdir -p /opt/claude && \
+    cp -r /root/.local/share/claude /opt/claude/ && \
+    CLAUDE_VERSION=$(ls /opt/claude/claude/versions/ | head -1) && \
+    ln -sf /opt/claude/claude/versions/$CLAUDE_VERSION /usr/local/bin/claude && \
+    rm -rf /root/.local/share/claude
+ENV PATH="/usr/local/bin:${PATH}"
 
 # Non-root user for runtime; UID can be overridden via HERMES_UID at runtime
 RUN useradd -u 10000 -m -d /opt/data hermes
@@ -50,6 +62,7 @@ COPY ui-tui/packages/hermes-ink/ ui-tui/packages/hermes-ink/
 ENV npm_config_install_links=false
 
 RUN npm install --prefer-offline --no-audit && \
+    npm install -g docx && \
     npx playwright install --with-deps chromium --only-shell && \
     (cd web && npm install --prefer-offline --no-audit) && \
     (cd ui-tui && npm install --prefer-offline --no-audit) && \
@@ -107,6 +120,17 @@ RUN uv pip install --no-cache-dir --no-deps -e "."
 
 # ---------- Runtime ----------
 ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
+USER root
+RUN chmod +x /opt/hermes/docker/entrypoint.sh
+
+# Bake document skills into inner Claude Code's global skills directory.
+# The scripts themselves are mounted at runtime via docker_volumes.
+RUN mkdir -p /root/.claude/skills && \
+    cp /opt/hermes/.claude/skills/docx.md /root/.claude/skills/docx.md && \
+    cp /opt/hermes/.claude/skills/pdf.md /root/.claude/skills/pdf.md && \
+    cp /opt/hermes/.claude/skills/pptx.md /root/.claude/skills/pptx.md && \
+    cp /opt/hermes/.claude/skills/xlsx.md /root/.claude/skills/xlsx.md
+
 ENV HERMES_HOME=/opt/data
 ENV PATH="/opt/data/.local/bin:${PATH}"
 VOLUME [ "/opt/data" ]
