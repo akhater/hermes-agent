@@ -30,7 +30,9 @@ services:
     network_mode: host
     volumes:
       - ~/.hermes:/opt/data
+      - ~/.claude:/root/.claude
       - ~/.claude:/opt/data/.claude
+      - ~/.claude:/opt/data/home/.claude
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
@@ -65,7 +67,9 @@ services:
       - gateway
     volumes:
       - ~/.hermes:/opt/data
+      - ~/.claude:/root/.claude
       - ~/.claude:/opt/data/.claude
+      - ~/.claude:/opt/data/home/.claude
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}

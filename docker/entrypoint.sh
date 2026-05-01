@@ -135,6 +135,22 @@ case "${HERMES_DASHBOARD:-}" in
         ;;
 esac
 
+# Make bundled Claude Code document skills visible from the active Claude home.
+# The image keeps a root copy for direct Docker use, but the Hermes service runs
+# as the hermes user and local tool subprocesses use "$HERMES_HOME/home" as HOME.
+if [ -d "$INSTALL_DIR/.claude/skills" ]; then
+    for claude_home in "$HOME/.claude" "$HERMES_HOME/.claude" "$HERMES_HOME/home/.claude"; do
+        mkdir -p "$claude_home/skills"
+        for skill_file in "$INSTALL_DIR"/.claude/skills/*.md; do
+            [ -e "$skill_file" ] || continue
+            target="$claude_home/skills/$(basename "$skill_file")"
+            if [ ! -e "$target" ]; then
+                cp "$skill_file" "$target"
+            fi
+        done
+    done
+fi
+
 # Final exec: two supported invocation patterns.
 #
 #   docker run <image>                 -> exec `hermes` with no args (legacy default)
