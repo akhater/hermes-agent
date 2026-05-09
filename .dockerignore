@@ -8,6 +8,8 @@ node_modules
 **/node_modules
 .venv
 **/.venv
+venv
+**/venv
 
 # Built artifacts that are regenerated inside the image.  Excluded so local
 # rebuilds on the developer's machine don't invalidate the npm-install layer
