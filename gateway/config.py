@@ -988,6 +988,10 @@ def load_gateway_config() -> GatewayConfig:
                     os.environ["TELEGRAM_IGNORED_THREADS"] = str(ignored_threads)
                 if "reactions" in telegram_cfg and not os.getenv("TELEGRAM_REACTIONS"):
                     os.environ["TELEGRAM_REACTIONS"] = str(telegram_cfg["reactions"]).lower()
+                if "agent_reactions" in telegram_cfg and not os.getenv("TELEGRAM_AGENT_REACTIONS"):
+                    os.environ["TELEGRAM_AGENT_REACTIONS"] = str(telegram_cfg["agent_reactions"]).lower()
+                if "signature_emoji" in telegram_cfg and not os.getenv("TELEGRAM_SIGNATURE_EMOJI"):
+                    os.environ["TELEGRAM_SIGNATURE_EMOJI"] = str(telegram_cfg["signature_emoji"])
                 if "proxy_url" in telegram_cfg and not os.getenv("TELEGRAM_PROXY"):
                     os.environ["TELEGRAM_PROXY"] = str(telegram_cfg["proxy_url"]).strip()
                 # reply_to_mode: top-level preferred, falls back to extra.reply_to_mode

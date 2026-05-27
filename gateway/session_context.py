@@ -58,7 +58,7 @@ _SESSION_KEY: ContextVar = ContextVar("HERMES_SESSION_KEY", default=_UNSET)
 _SESSION_ID: ContextVar = ContextVar("HERMES_SESSION_ID", default=_UNSET)
 # ID of the message that triggered the current turn. Used as a reply anchor
 # so background-process notifications stay inside the originating Telegram
-# private-chat topic (those lanes route only with thread id + reply anchor).
+# private-chat topic and reaction tools can target the current message.
 _SESSION_MESSAGE_ID: ContextVar = ContextVar("HERMES_SESSION_MESSAGE_ID", default=_UNSET)
 
 # Cron auto-delivery vars — set per-job in run_job() so concurrent jobs

@@ -8224,7 +8224,10 @@ class GatewayRunner:
         context = build_session_context(source, self.config, session_entry)
         
         # Set session context variables for tools (task-local, concurrency-safe)
-        _session_env_tokens = self._set_session_env(context)
+        _session_env_tokens = self._set_session_env(
+            context,
+            message_id=str(event.message_id) if event.message_id else "",
+        )
         
         # Read privacy.redact_pii from config (re-read per message)
         _redact_pii = False
@@ -14532,7 +14535,7 @@ class GatewayRunner:
 
         return delivered
 
-    def _set_session_env(self, context: SessionContext) -> list:
+    def _set_session_env(self, context: SessionContext, message_id: str = "") -> list:
         """Set session context variables for the current async task.
 
         Uses ``contextvars`` instead of ``os.environ`` so that concurrent
@@ -14550,7 +14553,7 @@ class GatewayRunner:
             user_id=str(context.source.user_id) if context.source.user_id else "",
             user_name=str(context.source.user_name) if context.source.user_name else "",
             session_key=context.session_key,
-            message_id=str(context.source.message_id) if context.source.message_id else "",
+            message_id=message_id,
         )
 
     def _clear_session_env(self, tokens: list) -> None:
@@ -16500,6 +16503,13 @@ class GatewayRunner:
             # session_key is now set via contextvars in _set_session_env()
             # (concurrency-safe). Keep os.environ as fallback for CLI/cron.
             os.environ["HERMES_SESSION_KEY"] = session_key or ""
+            # run_in_executor does NOT copy ContextVars to threads, so tools
+            # can't read HERMES_SESSION_* vars via contextvars. Mirror the
+            # session_key pattern: set os.environ here so os.getenv() fallback
+            # in get_session_env() works. Safe for single-session agents (Orion
+            # etc.); concurrent-session setups already route per session_key.
+            os.environ["HERMES_SESSION_MESSAGE_ID"] = event_message_id or ""
+            os.environ["HERMES_SESSION_CHAT_ID"] = str(source.chat_id) if source.chat_id else ""
 
             # Read from env var or use default (same as CLI)
             max_iterations = int(os.getenv("HERMES_MAX_ITERATIONS", "90"))
