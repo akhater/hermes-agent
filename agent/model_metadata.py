@@ -1688,7 +1688,6 @@ def get_model_context_length(
         metadata = fetch_model_metadata()
         if model in metadata:
             or_ctx = metadata[model].get("context_length", DEFAULT_FALLBACK_CONTEXT)
-            # Guard against stale OpenRouter metadata for Kimi-family models.
             if or_ctx == 32768 and _model_name_suggests_kimi(model):
                 logger.info(
                     "Rejecting OpenRouter metadata context=%s for %r "
