@@ -25,7 +25,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
 # hermes process, the dashboard, and per-profile gateways.
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ca-certificates curl python3 ripgrep ffmpeg gcc python3-dev libffi-dev procps git openssh-client docker-cli xz-utils && \
+    ca-certificates curl python3 ripgrep ffmpeg gcc python3-dev libffi-dev procps git openssh-client docker-cli xz-utils tmux pandoc poppler-utils libreoffice-writer-nogui && \
     rm -rf /var/lib/apt/lists/*
 
 # ---------- s6-overlay install ----------
@@ -74,6 +74,15 @@ RUN set -eu; \
     tar -C / -Jxpf /tmp/s6-overlay-arch.tar.xz; \
     tar -C / -Jxpf /tmp/s6-overlay-symlinks-noarch.tar.xz; \
     rm /tmp/s6-overlay-*.tar.xz /tmp/s6-overlay.sha256
+
+# Install Claude Code CLI globally (used by inner Claude sessions in containers).
+RUN curl -fsSL https://claude.ai/install.sh | bash && \
+    mkdir -p /opt/claude && \
+    cp -r /root/.local/share/claude /opt/claude/ && \
+    CLAUDE_VERSION=$(ls /opt/claude/claude/versions/ | head -1) && \
+    ln -sf /opt/claude/claude/versions/$CLAUDE_VERSION /usr/local/bin/claude && \
+    rm -rf /root/.local/share/claude
+ENV PATH="/usr/local/bin:${PATH}"
 
 # Non-root user for runtime; UID can be overridden via HERMES_UID at runtime
 RUN useradd -u 10000 -m -d /opt/data hermes
@@ -208,6 +217,14 @@ COPY --chmod=0755 docker/cont-init.d/02-reconcile-profiles /etc/cont-init.d/02-r
 
 # ---------- Runtime ----------
 ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
+
+# Bake document skills into inner Claude Code's global skills directory.
+RUN mkdir -p /root/.claude/skills && \
+    cp /opt/hermes/.claude/skills/docx.md /root/.claude/skills/docx.md && \
+    cp /opt/hermes/.claude/skills/pdf.md /root/.claude/skills/pdf.md && \
+    cp /opt/hermes/.claude/skills/pptx.md /root/.claude/skills/pptx.md && \
+    cp /opt/hermes/.claude/skills/xlsx.md /root/.claude/skills/xlsx.md
+
 ENV HERMES_HOME=/opt/data
 # Pre-s6 entrypoint.sh did `source .venv/bin/activate` which exported
 # the venv bin onto PATH; Architecture B's main-wrapper.sh does the

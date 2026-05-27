@@ -140,6 +140,24 @@ s6-setuidgid hermes mkdir -p \
     "$HERMES_HOME/workspace" \
     "$HERMES_HOME/home"
 
+
+# --- Sync bundled Claude Code document skills ---
+# The image bakes document skills under /opt/hermes/.claude/skills. Copy them
+# into the writable runtime homes used by inner Claude sessions after the
+# HERMES_HOME volume is mounted.
+if [ -d "$INSTALL_DIR/.claude/skills" ]; then
+    for claude_home in "$HERMES_HOME/.claude" "$HERMES_HOME/home/.claude"; do
+        s6-setuidgid hermes mkdir -p "$claude_home/skills"
+        for skill_file in "$INSTALL_DIR"/.claude/skills/*.md; do
+            [ -e "$skill_file" ] || continue
+            target="$claude_home/skills/$(basename "$skill_file")"
+            if [ ! -e "$target" ]; then
+                s6-setuidgid hermes cp "$skill_file" "$target"
+            fi
+        done
+    done
+fi
+
 # --- Install-method stamp (read by detect_install_method() in hermes status) ---
 # Preserved from the tini-era entrypoint (PR #27843). Must be written as
 # the hermes user so ownership matches the file's documented owner.
