@@ -3180,6 +3180,51 @@ def run_conversation(
                 else:
                     assistant_message.content = str(raw)
 
+            # Fallback: parse Anthropic-style <invoke> XML emitted by some
+            # OpenAI-compatible local models that follow Anthropic tool syntax
+            # instead of returning structured OpenAI tool_calls.
+            if (
+                agent.api_mode not in ("codex_responses", "anthropic_messages")
+                and not getattr(assistant_message, "tool_calls", None)
+                and "<invoke" in (assistant_message.content or "")
+            ):
+                from types import SimpleNamespace as _SN
+
+                _parsed_calls = []
+                _invoke_pattern = re.compile(
+                    r'<invoke\s+name=["\']([^"\']+)["\']>(.*?)</invoke>',
+                    re.DOTALL,
+                )
+                _param_pattern = re.compile(
+                    r'<parameter\s+name=["\']([^"\']+)["\']>(.*?)</parameter>',
+                    re.DOTALL,
+                )
+                for _m in _invoke_pattern.finditer(assistant_message.content):
+                    _fn_name = _m.group(1).strip()
+                    _body = _m.group(2)
+                    _kwargs = {
+                        _p.group(1).strip(): _p.group(2).strip()
+                        for _p in _param_pattern.finditer(_body)
+                    }
+                    _call_id = f"invoke_{len(_parsed_calls)}_{_fn_name}"
+                    _parsed_calls.append(
+                        _SN(
+                            id=_call_id,
+                            call_id=_call_id,
+                            response_item_id=None,
+                            type="function",
+                            function=_SN(
+                                name=_fn_name,
+                                arguments=json.dumps(_kwargs),
+                            ),
+                        )
+                    )
+                if _parsed_calls:
+                    assistant_message.tool_calls = _parsed_calls
+                    assistant_message.content = _invoke_pattern.sub(
+                        "", assistant_message.content
+                    ).strip() or None
+
             try:
                 from hermes_cli.plugins import invoke_hook as _invoke_hook
                 _assistant_tool_calls = getattr(assistant_message, "tool_calls", None) or []
