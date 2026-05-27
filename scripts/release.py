@@ -422,6 +422,7 @@ AUTHOR_MAP = {
     "yoimexex@gmail.com": "Yoimex",
     "6548898+romanornr@users.noreply.github.com": "romanornr",
     "foxion37@gmail.com": "foxion37",
+    "thomasmarcelis@gmail.com": "ThomasMarcelis",
     "bloodcarter@gmail.com": "bloodcarter",
     "scott@scotttrinh.com": "scotttrinh",
     "quocanh261997@gmail.com": "quocanh261997",
